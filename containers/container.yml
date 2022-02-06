@@ -1,2 +1,2 @@
 containers:
-  - insert-pterodactyl-volume-uuid-here
+  pterodactyl-container-uuid: container name

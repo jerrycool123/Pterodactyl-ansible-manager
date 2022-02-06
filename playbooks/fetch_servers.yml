@@ -1,0 +1,26 @@
+- name: Fetch Pterodactyl servers 
+  hosts: myhost
+  tasks:
+    - name: Get Pterodactyl servers
+      ansible.builtin.command: "curl '{{ lookup('env', 'PANEL_URL') }}/api/application/servers' -H 'Accept: application/json' -H 'Content-Type: application/json' -H 'Authorization: Bearer {{ lookup('env', 'APPLICATION_API_KEY') }}'"
+      register: servers_json
+    - name: Parse JSON response
+      ansible.builtin.set_fact:
+        servers: "{{ servers_json.stdout | from_json }}"
+    - name: Create UUID-name mapping
+      ansible.builtin.set_fact:
+        containers : "{{ containers | default({}) | combine({ item.attributes.uuid: item.attributes.name }) }}"
+      with_items:
+        - "{{ servers.data }}"
+    - name: debug
+      debug:
+        msg: "{{ containers }}"
+    - name: Wrap containers
+      ansible.builtin.set_fact:
+        containers: {
+          containers: "{{ containers }}"
+        }
+    - name: Write the mapping to container.yml
+      ansible.builtin.copy:
+        content: "{{ containers | to_nice_yaml(indent=2) }}"
+        dest: "{{ playbook_dir }}/../containers/container.yml"
