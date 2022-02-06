@@ -3,32 +3,30 @@
   tasks:
     - name: Read containers
       ansible.builtin.include_vars: ../containers/container.yml
-    - name: Get container ids
-      ansible.builtin.command: docker ps -aqf "name=""{{ item.key }}"
-      register: container_ids
+    - name: Get container lists
+      ansible.builtin.command: docker ps -a --format '{{ '{{' }} .Names {{ '}}' }} {{ '{{' }} .State {{ '}}' }}'
+      register: container_lists
+    - name: Parse container states
+      set_fact:
+        container_states: "{{ container_states | default({}) | combine({ item.split(' ')[0]: item.split(' ')[1] }) }}"
+      with_items: "{{ container_lists.stdout_lines }}"
+    - name: debug
+      debug:
+        msg: "{{ container_states }}"
+    - name: Check if container exists
+      ansible.builtin.assert:
+        that: item.key in container_states
+        fail_msg: "Container '{{ item.key }}': '{{ item.value }}' not found."
+        quiet: true
       with_dict: "{{ containers }}"
       loop_control:
         label: "{{ item.value }}"
-    - name: Check if container exists
-      ansible.builtin.assert:
-        that: item.stdout != ""
-        fail_msg: "Container '{{ item.item.key }}': '{{ item.item.value }}' not found."
-        quiet: true
-      with_items: "{{ container_ids.results }}"
-      loop_control:
-        label: "{{ item.item.value }}"
     - name: Get container states
-      ansible.builtin.command: docker inspect --format '{{ '{{' }} .State.Status {{ '}}' }}' "{{ item.stdout }}"
-      register: container_states
-      with_items: "{{ container_ids.results }}"
-      loop_control:
-        label: "{{ item.item.value }}"
-    - name: Print container states
       set_fact:
-        output: "{{ output | default({}) | combine({ item.item.item.value : item.stdout }) }}"
-      with_items: "{{ container_states.results }}"
+        output: "{{ output | default({}) | combine({ item.value : container_states[item.key] }) }}"
+      with_dict: "{{ containers }}"
       loop_control:
-        label: "{{ item.item.item.value }}"
+        label: "{{ item.value }}"
     - name: Write to state.json
       ansible.builtin.copy:
         content: "{{ output | to_nice_json(indent=2) }}"
