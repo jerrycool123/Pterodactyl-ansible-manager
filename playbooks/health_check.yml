@@ -1,0 +1,36 @@
+- name: Health Check
+  hosts: myhost
+  tasks:
+    - name: Read container uuids
+      ansible.builtin.include_vars: ../containers/container.yml
+    - name: Get container ids
+      ansible.builtin.command: docker ps -aqf "name=""{{ item }}"
+      register: container_ids
+      with_items: "{{ containers }}"
+    - name: Check if container exists
+      ansible.builtin.assert:
+        that:
+          - item.1.stdout != ""
+        fail_msg: "Container '{{ item.0 }}' not found."
+        quiet: true
+      with_together: 
+        - "{{ containers }}"
+        - "{{ container_ids.results }}"
+      loop_control:
+        label: "{{ item.0 }}"
+    - name: Get container states
+      ansible.builtin.command: docker inspect --format '{{ '{{' }} .State.Status {{ '}}' }}' "{{ item.1.stdout }}"
+      register: container_states
+      with_together: 
+        - "{{ containers }}"
+        - "{{ container_ids.results }}"
+      loop_control:
+        label: "{{ item.0 }}"
+    - name: Print container states
+      ansible.builtin.debug:
+        msg: "{{ item.0 }}: {{ item.1.stdout }}"
+      with_together: 
+        - "{{ containers }}"
+        - "{{ container_states.results }}"
+      loop_control:
+        label: "{{ item.0 }}"
