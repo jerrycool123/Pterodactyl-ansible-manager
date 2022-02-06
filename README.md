@@ -5,9 +5,10 @@
 
 ## Playbooks
 
-- Playbooks are under `./playbooks` directory
+- Playbooks are under `./playbooks` directory.
 
 ### health\_check.yml
 
 - Add pterodactyl container UUIDs you want to monitor in `./containers/container.yml`.
 - You can find the UUID in the Pterodactyl panel -> Click a server -> Settings -> Debug Information -> Server ID.
+- Run `ansible-playbook -i ./containers/container.yml ./playbooks/health_check.yml.`
