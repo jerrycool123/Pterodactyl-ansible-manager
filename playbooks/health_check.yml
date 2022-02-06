@@ -9,51 +9,48 @@
         servers: "{{ servers_json.stdout | from_json }}"
     - name: Create UUID-name mapping
       ansible.builtin.set_fact:
-        containers : "{{ containers | default({}) | combine({ item.attributes.uuid: item.attributes.name }) }}"
+        all_containers : "{{ all_containers | default({}) | combine({ item.attributes.uuid: item.attributes.name }) }}"
       with_items:
         - "{{ servers.data }}"
     - name: debug
       debug:
-        msg: "{{ containers }}"
+        msg: "{{ all_containers }}"
     - name: Wrap containers
       ansible.builtin.set_fact:
-        containers: {
-          containers: "{{ containers }}"
+        wrapped_containers: {
+          containers: "{{ all_containers }}"
         }
     - name: Write the mapping to container.yml
       ansible.builtin.copy:
-        content: "{{ containers | to_nice_yaml(indent=2) }}"
+        content: "{{ wrapped_containers | to_nice_yaml(indent=2) }}"
         dest: "{{ playbook_dir }}/../containers/container.yml"
-    - name: Health Check
-      hosts: myhost
-      tasks:
-        - name: Read containers
-          ansible.builtin.include_vars: ../containers/container.yml
-        - name: Get container lists
-          ansible.builtin.command: docker ps -a --format '{{ '{{' }} .Names {{ '}}' }} {{ '{{' }} .State {{ '}}' }}'
-          register: container_lists
-        - name: Parse container states
-          set_fact:
-            container_states: "{{ container_states | default({}) | combine({ item.split(' ')[0]: item.split(' ')[1] }) }}"
-          with_items: "{{ container_lists.stdout_lines }}"
-        - name: debug
-          debug:
-            msg: "{{ container_states }}"
-        - name: Check if container exists
-          ansible.builtin.assert:
-            that: item.key in container_states
-            fail_msg: "Container '{{ item.key }}': '{{ item.value }}' not found."
-            quiet: true
-          with_dict: "{{ containers }}"
-          loop_control:
-            label: "{{ item.value }}"
-        - name: Get container states
-          set_fact:
-            output: "{{ output | default({}) | combine({ item.value : container_states[item.key] }) }}"
-          with_dict: "{{ containers }}"
-          loop_control:
-            label: "{{ item.value }}"
-        - name: Write to state.json
-          ansible.builtin.copy:
-            content: "{{ output | to_nice_json(indent=2) }}"
-            dest: "{{ lookup('env', 'PWD') }}/state.json"
+    - name: Read containers
+      ansible.builtin.include_vars: ../containers/container.yml
+    - name: Get container lists
+      ansible.builtin.command: docker ps -a --format '{{ '{{' }} .Names {{ '}}' }} {{ '{{' }} .State {{ '}}' }}'
+      register: container_lists
+    - name: Parse container states
+      set_fact:
+        container_states: "{{ container_states | default({}) | combine({ item.split(' ')[0]: item.split(' ')[1] }) }}"
+      with_items: "{{ container_lists.stdout_lines }}"
+    - name: debug
+      debug:
+        msg: "{{ container_states }}"
+    - name: Check if container exists
+      ansible.builtin.assert:
+        that: item.key in container_states
+        fail_msg: "Container '{{ item.key }}': '{{ item.value }}' not found."
+        quiet: true
+      with_dict: "{{ containers }}"
+      loop_control:
+        label: "{{ item.value }}"
+    - name: Get container states
+      set_fact:
+        output: "{{ output | default({}) | combine({ item.value : container_states[item.key] }) }}"
+      with_dict: "{{ containers }}"
+      loop_control:
+        label: "{{ item.value }}"
+    - name: Write to state.json
+      ansible.builtin.copy:
+        content: "{{ output | to_nice_json(indent=2) }}"
+        dest: "{{ lookup('env', 'PWD') }}/state.json"
